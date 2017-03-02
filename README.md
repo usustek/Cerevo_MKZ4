@@ -2,25 +2,25 @@
 Cerevo MKZ4 kai
 
 
-## ������́H
+## 何するの？
 
-Cerevo MKZ4�͑O�㍶�EOn/Off�̑��삵���A�W���̃\�t�g�E�F�A�ł͂ł��܂���B
-�Ȃ߂炩�ȑ��삪�ł�����ǂ���ˁI�Ƃ������Ƃŉ������n�߂܂����B
+Cerevo MKZ4は前後左右On/Offの操作しか、標準のソフトウェアではできません。
+なめらかな操作ができたら良いよね！ということで改造を始めました。
 
-## �K�v�Ȃ���
+## 必要なもの
 
-- �A�i���O�X�e�B�b�N�̂����Q�[���p�b�h
-  - ���܂̂Ƃ��� Logicool GamePad F310�̂ݑΉ�
-- ��L�Q�[���p�b�h��F������WiFi�ɐڑ��\��PC
+- アナログスティックのついたゲームパッド
+  - いまのところ Logicool GamePad F310のみ対応
+- 上記ゲームパッドを認識してWiFiに接続可能なPC
 
 
-## �\�t�g�E�F�A�̊T�v
+## ソフトウェアの概要
 
-- MKZ4(ESP8266)��
- - WebServer�ƂȂ���PC/�X�}�z�̑���pUI���z�X�e�B���O
-- PC/�X�}�z
- - ����p��form�f�[�^�𑗐M
+- MKZ4(ESP8266)側
+ - WebServerとなってPC/スマホの操作用UIをホスティング
+- PC/スマホ
+ - 操作用のformデータを送信
 
- WebSocket������ESP8266���̃\�t�g�E�F�A���Ԉ���ď����Ă��܂���(�L�G�ցG`)�̂ŁA
- ���݃r���h���Ă��܂Ƃ��ɓ����܂���B
+ WebSocket化したESP8266側のソフトウェアを間違って消してしまった(´；ω；`)ので、
+ 現在ビルドしてもまともに動きません。
  
