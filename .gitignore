@@ -1,0 +1,10 @@
+.build
+.git
+.vs
+.vscode
+__vm
+Debug
+Release
+Debug_ClientSsid.h
+*.filters
+*.user

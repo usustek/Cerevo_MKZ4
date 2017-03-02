@@ -1,0 +1,5 @@
+#pragma once
+
+const char* DebugClientSsid = "your-ssid";
+const char* DebugClientPswd = "your-password";
+
