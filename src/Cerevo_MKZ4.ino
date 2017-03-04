@@ -172,7 +172,8 @@ void setup() {
 	drv8830.setSpeed(0);
 	mkz4Servo.attach(16);
 	mkz4Servo.steer(0.0);
-
+	SPIFFS.begin();
+	
 	ws.onEvent(onWSEvent);
 	server.addHandler(&ws);
 
