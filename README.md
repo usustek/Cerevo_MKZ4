@@ -12,7 +12,18 @@ Cerevo MKZ4は前後左右On/Offの操作しか、標準のソフトウェアで
 - アナログスティックのついたゲームパッド
   - いまのところ Logicool GamePad F310のみ対応
 - 上記ゲームパッドを認識してWiFiに接続可能なPC
+- Cerevo MKZ4を組み込んだワイルドミニ四駆
 
+## 使用しているライブラリ
+
+- ESPAsyncTCP
+  - https://github.com/me-no-dev/ESPAsyncTCP
+- ESPAsyncWebServer
+  - https://github.com/me-no-dev/ESPAsyncWebServer
+- DRV8830MotorDriver
+  - https://gist.github.com/gundamsan/98efc45afd877dff7254
+- ArduinoJson
+  - https://github.com/bblanchon/ArduinoJson
 
 ## ソフトウェアの概要
 
@@ -23,4 +34,3 @@ Cerevo MKZ4は前後左右On/Offの操作しか、標準のソフトウェアで
 
  WebSocket化したESP8266側のソフトウェアを間違って消してしまった(´；ω；`)ので、
  現在ビルドしてもまともに動きません。
- 

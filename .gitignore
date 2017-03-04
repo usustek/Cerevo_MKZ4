@@ -8,3 +8,8 @@ Release
 Debug_ClientSsid.h
 *.filters
 *.user
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+src/Debug_ClientSsid.h

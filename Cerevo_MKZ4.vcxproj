@@ -79,7 +79,7 @@
     <ProjectCapability Include="VisualMicro" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Cerevo_MKZ4.ino">
+    <None Include="src/Cerevo_MKZ4.ino">
       <FileType>CppCode</FileType>
     </None>
   </ItemGroup>

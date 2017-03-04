@@ -31,17 +31,20 @@
 
  /* Create a WiFi access point and provide a web server on it. */
 
+#include <Hash.h>
 #include <ESP8266WiFi.h>
-#include <WiFiClient.h> 
-#include <ESP8266WebServer.h>
+#include <WiFiClient.h>
 #include "Debug_ClientSsid.h"
+#include <ESPAsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <FS.h>
+#include "DRV8830MotorDriver.h"
+#include <ArduinoJson.h>
+#include <Servo.h>
 
 /* Set these to your desired credentials. */
 const char *ssid = "MKZ4";
 const char *password = "";
-
-ESP8266WebServer server(80);
-ESP8266WebServer server_8080(8080);
 
 /* set I2C library*/
 #include <Wire.h>
@@ -58,86 +61,78 @@ ESP8266WebServer server_8080(8080);
 #define LED_H       (digitalWrite( 12, HIGH ))
 #define LED_L       (digitalWrite( 12, LOW ))
 
+template <class T> T map(T x, T in_min, T in_max, T out_min, T out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+};
+
+/**
+ * Servoクラスのラッパ
+ * アナログスティックの値、左右に-1.0〜1.0の範囲を直接渡せるようにする。
+ */
+class MKZ4Servo : public Servo
+{
+private:
+	int _maxRight = 0;
+	int _maxLeft = 0;
+	int _steerCenter = 90;
+
+public:
+	MKZ4Servo(int maxLeftRad, int maxRightRad)
+	: Servo(), _maxLeft(maxLeftRad), _maxRight(maxRightRad)
+	{
+	}
+
+	void addTrim(int trim){
+		_steerCenter += trim;
+	}
+
+	void steer(float val)
+	{
+		int rad = _steerCenter;
+
+		if(val > 0) {
+			rad = (int)map(val, 0.0, 1.0, _steerCenter, _maxRight);
+		}
+		else if(val < 0) {
+			rad = (int)map(val, 0.0, -1.0, _steerCenter, _maxLeft);
+		}
+		write(rad);
+	}
+};
+
+class ControlValues {
+public:
+	float axel;
+	float steer;
+
+	bool merge(ControlValues &src)
+	{
+		bool chg = false;
+
+		if(axel != src.axel){
+			chg |= true;
+			axel = src.axel;
+		}
+
+		if(steer != src.steer){
+			chg != true;
+			steer = src.steer;
+		}
+
+		return chg;
+	}
+};
+
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+DRV8830MotorDriver drv8830(ADDR1);
+MKZ4Servo mkz4Servo(servo_left, servo_right);
+StaticJsonBuffer<200> jsonBuff;
+ControlValues lastControl;
+
 char state = command_stop;
 int offset = 10;
 
-String form = "<html>"
-"<head>"
-"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1\">"
-"<style>"
-"* { padding: 0; margin: 0; }"
-"body { background-color: #0097C1; }"
-"</style>"
-"</head>"
-"<body>"
-"<div style=\"position:fixed;top: 50pt; text-align:center; width: 100%; color:white; font-size:300%; font-weight:bold; text-transform:uppercase; font-family:sans-serif\" id=\"value\">connected</div>"
-"<form action=\"\" target=\"tif\" id=\"form\">"
-"<iframe src=\"javascript: false;\" style=\"display: none;\" name=\"tif\" id=\"tif\"></iframe>"
-"</form>"
-"<script>"
-"var offset = 50;"
-"document.body.style.height = document.body.clientHeight + offset + \'px\';"
-"document.body.style.width = document.body.clientWidth + offset + \'px\';"
-"document.getElementsByTagName(\"html\")[0].style.height = document.body.style.height + \'px\';"
-"document.getElementsByTagName(\"html\")[0].style.width = document.body.style.width + \'px\';"
-"var moveHomePosition = function() {"
-"document.body.scrollTop = offset / 2;"
-"document.body.scrollLeft = offset / 2;"
-"};"
-"setTimeout(moveHomePosition, 500);"
-"var startX = 0;var startY = 0;var command =\'/stop\';"
-"var threshold = 40;"
-"var esp_port = \'http://192.168.4.1:8080\';"
-"var el_form = document.getElementById(\'form\');"
-"document.body.ontouchstart = function(event) {"
-"startX = event.touches[0].clientX;"
-"startY = event.touches[0].clientY;"
-"};"
-"document.body.ontouchmove = function(event) {"
-"var x = parseInt(event.touches[0].clientX - startX);"
-"var y = parseInt(event.touches[0].clientY - startY);"
-"var url = null;"
-"if (x < (threshold * -1)) {"
-"if (y < (threshold * -1)){"
-"url = \'/left<br>forward\';"
-"} else if (y > threshold) {"
-"url = \'/left<br>back\';"
-"}else {"
-"url = \'/left\';"
-"}"
-"} else if (x > threshold) {"
-"if (y < (threshold * -1)) {"
-"url = \'/right<br>forward\';"
-"} else if (y > threshold) {"
-"url = \'/right<br>back\';"
-"}else{"
-"url = \'/right\';"
-"}"
-"} else {"
-"if (y < (threshold * -1)) {"
-"url = \'/forward\';"
-" } else if (y > threshold) {"
-"url = \'/back\';"
-"}"
-"}"
-"if (command != url) {"
-"if (url) {"
-"el_form.action = esp_port + url.replace(\"<br>\",\"\");"
-"el_form.submit();"
-"document.getElementById(\'value\').innerHTML = url.replace(\"/\",\"\");"
-"}"
-"}"
-"command = url;"
-"};"
-"document.body.ontouchend = function(event) {"
-"el_form.action = esp_port + \'/stop\';"
-"el_form.submit();"
-"setTimeout(moveHomePosition, 50);"
-"document.getElementById(\'value\').innerHTML = \'stop\';"
-"};"
-"</script>"
-"</body>"
-"</html>";
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -146,7 +141,7 @@ void setup() {
 	delay(1000);
 	Serial.begin(115200);
 	Serial.println();
-	Serial.print("Configuring access point...");
+	Serial.print(F("Configuring access point..."));
 
 	Wire.begin(4, 14);
 	delay(40);
@@ -159,10 +154,10 @@ void setup() {
 		Serial.print(".");
 	}
 
-	Serial.println("");
-	Serial.println("WiFi connected");
-	Serial.println("IP address: ");
-	Serial.println(WiFi.localIP()); 
+	Serial.println(F(""));
+	Serial.println(F("WiFi connected"));
+	Serial.println(F("IP address: "));
+	Serial.println(WiFi.localIP());
 #else
 	/* You can remove the password parameter if you want the AP to be open. */
 	WiFi.softAP(ssid, password);
@@ -172,21 +167,20 @@ void setup() {
 	Serial.println(myIP);
 #endif
 
-	server.on("/", handleRoot);
-	server_8080.on("/stop", handle_stop);
-	server_8080.on("/forward", handle_forward);
-	server_8080.on("/back", handle_back);
-	server_8080.on("/left", handle_left);
-	server_8080.on("/right", handle_right);
-	server_8080.on("/leftforward", handle_f_left);
-	server_8080.on("/rightforward", handle_f_right);
-	server_8080.on("/leftback", handle_b_left);
-	server_8080.on("/rightback", handle_b_right);
+	//server.on("/", handleRoot);
 
+	drv8830.setSpeed(0);
+	mkz4Servo.attach(16);
+	mkz4Servo.steer(0.0);
+
+	ws.onEvent(onWSEvent);
+	server.addHandler(&ws);
+
+	server.serveStatic("/", SPIFFS, "/")
+	      .setDefaultFile("index.html");
 	server.begin();
-	server_8080.begin();
 
-	Serial.println("HTTP server started");
+	Serial.println(F("HTTP server started"));
 	pinMode(16, OUTPUT);
 	pinMode(12, OUTPUT);
 
@@ -194,16 +188,72 @@ void setup() {
 	delay(100);
 }
 
-void loop() {
-	server.handleClient();
-	server_8080.handleClient();
+void onWSEvent(AsyncWebSocket * server,
+			AsyncWebSocketClient * client,
+			AwsEventType type,
+			void * arg,
+			uint8_t *data,
+			size_t len)
+{
+  if(type == WS_EVT_CONNECT){
+    //client connected
+    Serial.printf("ws[%s][%u] connect\n", server->url(), client->id());
+    client->ping();
+  } else if(type == WS_EVT_DISCONNECT){
+    //client disconnected
+    Serial.printf("ws[%s][%u] disconnect: %u\n", server->url(), client->id());
+  } else if(type == WS_EVT_ERROR){
+    //error was received from the other end
+    Serial.printf("ws[%s][%u] error(%u): %s\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
+  } else if(type == WS_EVT_PONG){
+    //pong message was received (in response to a ping request maybe)
+    Serial.printf("ws[%s][%u] pong[%u]: %s\n", server->url(), client->id(), len, (len)?(char*)data:"");
+  } else if(type == WS_EVT_DATA){
+    //data packet
+    AwsFrameInfo * info = (AwsFrameInfo*)arg;
+    if(info->final && info->index == 0 && info->len == len){
+      //the whole message is in a single frame and we got all of it's data
+      if(info->opcode == WS_TEXT){
+		ControlValues ctl;
+        data[len] = 0;
+		JsonObject& json = jsonBuff.parseObject((char*)data);
+		// parseJson(obj, method, )
+		parseJson(json, &ctl);
+		if(lastControl.merge(ctl)){
+			setControl(ctl.axel, ctl.steer);
+		}
+      }
+    }
+  }
 }
 
+void loop() {
+}
 
+void parseJson(JsonObject &json, ControlValues *control)
+{
+	ControlValues tmp;
+	auto orZero = [=](String s) { return s != NULL && s == "" ? s : String(F("0")); };
+
+	if(control == NULL) {
+		control = &tmp;
+	}
+
+	control->axel  = orZero(json[F("axel")]).toFloat();
+	control->steer = orZero(json[F("steer")]).toFloat();
+}
+
+void setControl(float axel, float steer){
+	int spd = map(axel, -1.0, 1.0, -255, 255);
+
+	drv8830.setSpeed(spd);
+	mkz4Servo.steer(steer);
+}
+
+#if 0
 void handleRoot() {
 	server.send(200, "text/html", form);
 }
-
 
 void handle_stop() {
 	Serial.print("stop\r\n");
@@ -268,7 +318,9 @@ void handle_b_right() {
 	servo_control(servo_right);
 	server_8080.send(200, "text/html", "");
 }
+#endif
 
+#if 0
 void drive() {
 	if (state == command_back) {
 		stop_motor();
@@ -345,7 +397,9 @@ void servo_control(int angle) {
 	}
 	LED_H;
 }
+#endif
 
+#if 0
 #define MARGIN_STEER 0.001
 #define MARGIN_AXEL  0.001
 
@@ -355,25 +409,11 @@ float steerLast = 0.0;
 float axelCenter = 0.0;
 float steerCenter = 0.0;
 
-void handle_initPad()
-{
-	String axStr = server_8080.arg(String("axel"));
-	String stStr = server_8080.arg(String("steer"));
-
-	float ax = axStr.toFloat();
-	float st = stStr.toFloat();
-}
-
-void initGamepad(float axel, float steer)
-{
-	axelCenter = axelLast = axel;
-	steerCenter = steerLast = steer;
-}
-
 // value < 0 : left
 // value > 0 : right
 void steering(float value)
 {
+
 	// 前回値と異なるか？
 	if (steerLast != value)
 	{
@@ -381,7 +421,7 @@ void steering(float value)
 		if ((steerCenter + MARGIN_STEER) <= value)
 		{
 			float start = steerCenter + MARGIN_STEER; // 有効な開始点
-			float delta = value - start;			  // 開始点からの差分 
+			float delta = value - start;			  // 開始点からの差分
 			float frange = 1.0f - start;		      // 有効範囲
 			float radmax = (float)servo_right - servoCenter; // 右ハンドルの角度
 			float rad = 1.0f / frange * delta * radmax;  // センサ値→角度
@@ -391,7 +431,7 @@ void steering(float value)
 		if ((steerCenter - MARGIN_STEER) >= value)
 		{
 			float start = steerCenter - MARGIN_STEER; // 有効な開始点
-			float delta = value - start;			  // 開始点からの差分 
+			float delta = value - start;			  // 開始点からの差分
 			float frange = -1.0f - start;		      // 有効範囲
 			float radmax = (float)servo_left - servoCenter; // 右ハンドルの角度
 			float rad = 1.0f / frange * delta * radmax;  // TODO 要再考 センサ値→角度
@@ -400,29 +440,4 @@ void steering(float value)
 		steerLast = value;
 	}
 }
-
-// value < 0 : foward
-// value > 0 : back
-void axel(float value)
-{
-	if (axelLast != value)
-	{
-		// foward
-		if ((axelCenter - MARGIN_AXEL) >= value)
-		{
-			drive();
-		}
-		// back
-		if ((axelCenter + MARGIN_AXEL) <= value)
-		{
-			back();
-		}
-	}
-}
-
-void motor_garde()
-{
-	stop_motor();
-	delay(50);
-}
-
+#endif
