@@ -39,7 +39,8 @@
 #include <ESPAsyncWebServer.h>
 #include <FS.h>
 #include "DRV8830MotorDriver.h"
-#include <ArduinoJson.h>
+#include <aJSON.h>
+// #include <ArduinoJson.h>
 #include <Servo.h>
 
 /* Set these to your desired credentials. */
@@ -127,7 +128,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 DRV8830MotorDriver drv8830(ADDR1);
 MKZ4Servo mkz4Servo(servo_left, servo_right);
-StaticJsonBuffer<200> jsonBuff;
+//StaticJsonBuffer<200> jsonBuff;
 ControlValues lastControl;
 
 char state = command_stop;
@@ -173,7 +174,7 @@ void setup() {
 	mkz4Servo.attach(16);
 	mkz4Servo.steer(0.0);
 	SPIFFS.begin();
-	
+
 	ws.onEvent(onWSEvent);
 	server.addHandler(&ws);
 
@@ -212,17 +213,40 @@ void onWSEvent(AsyncWebSocket * server,
   } else if(type == WS_EVT_DATA){
     //data packet
     AwsFrameInfo * info = (AwsFrameInfo*)arg;
+    Serial.printf("ws[%s][%u] %s-message[%u]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+    Serial.println("");
+
     if(info->final && info->index == 0 && info->len == len){
       //the whole message is in a single frame and we got all of it's data
       if(info->opcode == WS_TEXT){
 		ControlValues ctl;
         data[len] = 0;
-		JsonObject& json = jsonBuff.parseObject((char*)data);
-		// parseJson(obj, method, )
-		parseJson(json, &ctl);
-		if(lastControl.merge(ctl)){
-			setControl(ctl.axel, ctl.steer);
-		}
+        Serial.printf("Message %s", (char*)data);
+        Serial.println("");
+
+#ifdef aJson__h
+		aJsonObject* json = aJson.parse((char*)data);
+
+        if(json != NULL && parseJson(json, &ctl)){
+            // Serial.println("parsed");
+            setControl(ctl.axel, ctl.steer);
+            aJson.deleteItem(json);
+        }
+#endif
+
+#if 0
+        Serial.printf("Axel: %lf\n", (double)json["axel"]);
+        Serial.printf("Steer: %lf\n", (double)json["steer"]);
+
+        if(json.success()){
+            if(lastControl.merge(ctl)){
+    			setControl(ctl.axel, ctl.steer);
+    		}
+        }
+        else{
+            Serial.println("parse fail.");
+        }
+#endif
       }
     }
   }
@@ -231,18 +255,46 @@ void onWSEvent(AsyncWebSocket * server,
 void loop() {
 }
 
-void parseJson(JsonObject &json, ControlValues *control)
+#ifdef aJson__h
+bool parseJson(aJsonObject *json, ControlValues *control)
 {
 	ControlValues tmp;
-	auto orZero = [=](String s) { return s != NULL && s == "" ? s : String(F("0")); };
+    bool parsed = false;
 
 	if(control == NULL) {
 		control = &tmp;
 	}
 
-	control->axel  = orZero(json[F("axel")]).toFloat();
-	control->steer = orZero(json[F("steer")]).toFloat();
+    auto axItem = aJson.getObjectItem(json, "axel");
+    if(axItem != NULL && axItem->type == aJson_Float){
+        control->axel = axItem->valuefloat;
+        parsed |= true;
+    }
+    // aJson.deleteItem(axItem);
+
+    auto stItem = aJson.getObjectItem(json, "steer");
+    if(stItem != NULL && stItem->type == aJson_Float){
+        control->steer = stItem->valuefloat;
+        parsed |= true;
+    }
+    // aJson.deleteItem(stItem);
+
+    return parsed;
 }
+#endif
+
+// void parseJson(JsonObject &json, ControlValues *control)
+// {
+// 	ControlValues tmp;
+// 	auto orZero = [=](String s) { return s != NULL && s == "" ? s : String(F("0")); };
+//
+// 	if(control == NULL) {
+// 		control = &tmp;
+// 	}
+//
+// 	control->axel  = orZero(json[F("axel")]).toFloat();
+// 	control->steer = orZero(json[F("steer")]).toFloat();
+// }
 
 void setControl(float axel, float steer){
 	int spd = map(axel, -1.0, 1.0, -255, 255);

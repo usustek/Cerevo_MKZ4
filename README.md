@@ -22,6 +22,8 @@ Cerevo MKZ4は前後左右On/Offの操作しか、標準のソフトウェアで
   - https://github.com/me-no-dev/ESPAsyncWebServer
 - DRV8830MotorDriver
   - https://gist.github.com/gundamsan/98efc45afd877dff7254
+- aJson
+  - https://github.com/interactive-matter/aJson
 - ArduinoJson
   - https://github.com/bblanchon/ArduinoJson
 

@@ -10,9 +10,9 @@ var initVal = {
     steer:0
 };
 
-var host = "192.168.10.6"; 
-// var host = location.host;
-var ws = undefined; 
+//var host = "192.168.10.8";
+var host = location.host;
+var ws = undefined;
 
 function checkPad()
 {
