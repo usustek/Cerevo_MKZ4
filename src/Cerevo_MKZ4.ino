@@ -199,21 +199,21 @@ void onWSEvent(AsyncWebSocket * server,
 {
   if(type == WS_EVT_CONNECT){
     //client connected
-    Serial.printf("ws[%s][%u] connect\n", server->url(), client->id());
+    Serial.printf("ws[%u][%s][%u] connect\n", millis(), server->url(), client->id());
     client->ping();
   } else if(type == WS_EVT_DISCONNECT){
     //client disconnected
-    Serial.printf("ws[%s][%u] disconnect: %u\n", server->url(), client->id());
+    Serial.printf("ws[%u][%s][%u] disconnect: %u\n", millis(), server->url(), client->id());
   } else if(type == WS_EVT_ERROR){
     //error was received from the other end
-    Serial.printf("ws[%s][%u] error(%u): %s\n", server->url(), client->id(), *((uint16_t*)arg), (char*)data);
+    Serial.printf("ws[%u][%s][%u] error(%u): %s\n", millis(), server->url(), client->id(), *((uint16_t*)arg), (char*)data);
   } else if(type == WS_EVT_PONG){
     //pong message was received (in response to a ping request maybe)
-    Serial.printf("ws[%s][%u] pong[%u]: %s\n", server->url(), client->id(), len, (len)?(char*)data:"");
+    Serial.printf("ws[%u][%s][%u] pong[%u]: %s\n", millis(), server->url(), client->id(), len, (len)?(char*)data:"");
   } else if(type == WS_EVT_DATA){
     //data packet
     AwsFrameInfo * info = (AwsFrameInfo*)arg;
-    Serial.printf("ws[%s][%u] %s-message[%u]: ", server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+    Serial.printf("ws[%u][%s][%u] %s-message[%u]: ", millis(), server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
     Serial.println("");
 
     if(info->final && info->index == 0 && info->len == len){

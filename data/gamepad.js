@@ -10,6 +10,10 @@ var initVal = {
     steer:0
 };
 
+var PadDef = {
+
+};
+
 //var host = "192.168.10.8";
 var host = location.host;
 var ws = undefined;
@@ -17,26 +21,38 @@ var ws = undefined;
 function checkPad()
 {
     var pads = navigator.getGamepads();
-    if(pads){
-        for(var i = 0; i < pads.length; i ++)
+    var def = PadDef;
+    if(def && pads.length > def.index && pads[def.index]){
+        var pad = pads[def.index];
+        if(pad)
         {
-            var pad = pads[i];
-            if(pad)
-            {
-                if(pad.id.lastIndexOf("Unknown") >= 0) {
-                    continue;
-                }
+            var start = pad.buttons[def.startButton]; // start btton
+            if(start && start.pressed) {
+                toggleConnect();
+            }
 
-                var start = pad.buttons[9]; // start btton
-                if(start && start.pressed && ws) {
-                    sendPadData("init");
-                    continue;
-                }
+            var chg = updatePad(pad, def);
+            if(chg && ws) {
+                sendPadData("control");
+            }
+        }
+    }
+}
 
-                var chg = updatePad(pad);
-                if(chg && ws) {
-                    sendPadData("control");
-                }
+function initPad()
+{
+    var pads = navigator.getGamepads();
+    var def = PadDef;
+    if(def && pads.length > def.index && pads[def.index]){
+        var pad = pads[def.index];
+        if(pad)
+        {
+            var chg = updatePad(pad, def);
+            if(chg) {
+                initVal.axel  = lastVal.axel;
+                initVal.steer = lastVal.steer;
+                initVal.init  = true;
+                console.log(lastVal.axel + " / " + lastVal.steer);
             }
         }
     }
@@ -44,12 +60,13 @@ function checkPad()
 
 /**
  * @param  {Gamepad} pad
+ * @param  {PadDef} def
  * @returns {boolean}
  */
-function updatePad(pad)
+function updatePad(pad, def)
 {
-    var ax1 = pad.axes[1]; // axel
-    var ax2 = pad.axes[2]; // steering
+    var ax1 = pad.axes[def.axelAxis];  // axel
+    var ax2 = pad.axes[def.steerAxis]; // steering
     var chg = false;
 
     if(lastVal.axel != ax1) {
@@ -62,25 +79,24 @@ function updatePad(pad)
         chg |= true;
     }
 
-    if(chg) {
-        if(!initVal.init){
-            initVal.axel  = lastVal.axel;
-            initVal.steer = lastVal.steer;
-            initVal.init  = true;
-        }
-        console.log(lastVal.axel + " / " + lastVal.steer);
-    }
-
     return chg;
 }
 
+function map(val, in_min, in_max, out_min, out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 /**
  * @param {string} method
  */
 function sendPadData(method){
     if(ws){
-        lastVal.method = method;
-        ws.send(JSON.stringify(lastVal));
+        var snd = {
+            method: method,
+            axel: Math.pow(lastVal.axel, 3),
+            steer: Math.pow(lastVal.steer, 3)
+        };
+
+        ws.send(JSON.stringify(snd));
     }
 }
 
@@ -89,7 +105,7 @@ function setIntervalCheck() {
     checkPad();
 };
 
-$("#con").click(function(){
+function toggleConnect(){
     var btn = $("#con");
 
     if(ws){
@@ -100,18 +116,68 @@ $("#con").click(function(){
         sock.onopen = function(event){
             ws = this; //WebSocket
             btn.text("Disconnect");
-            window.requestAnimationFrame(setIntervalCheck);
             sendPadData("init");
         };
         sock.onclose = function(event){
             ws = undefined;
             btn.text("Connect");
-            window.cancelAnimationFrame(setIntervalCheck);
         };
 
     }
-});
+};
+
+var GamePadDefs = {
+    "Logicool Dual Action (STANDARD GAMEPAD Vendor: 046d Product: c216)" : {
+        axelAxis: 1,
+        steerAxis: 2,
+        startButton: 9
+    }
+};
 
 window.onload = function(){
-    checkPad();
+    $("#con").click(toggleConnect);
 };
+
+window.addEventListener("gamepadconnected",  function(e){
+    console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+        e.gamepad.index, e.gamepad.id,
+        e.gamepad.buttons.length, e.gamepad.axes.length);
+
+    var def = GamePadDefs[e.gamepad.id];
+    if(def){
+        def.id    = e.gamepad.id;
+        def.index = e.gamepad.index;
+        PadDef = def;
+    }
+    else{
+        var gp = e.gamepad;
+        var def = {
+            id: gp.id,
+            index: gp.index
+        };
+
+        if(gp.axes.length == 2){
+            def.axelAxis    = 0;
+            def.steerAxis   = 1;
+            def.startButton = 0;
+        }
+        else if(gp.axes.length == 4){
+            def.axelAxis    = 1;
+            def.steerAxis   = 2;
+            def.startButton = 0;
+        }
+
+        PadDef = def;
+    }
+
+    initPad();
+    window.requestAnimationFrame(setIntervalCheck);
+}, false);
+
+window.addEventListener("gamepaddisconnected", function(e) {
+    console.log("Gamepad disconnected from index %d: %s",
+        e.gamepad.index, e.gamepad.id);
+    PadDef = null;
+    window.cancelAnimationFrame(setIntervalCheck);
+}, false);
+
