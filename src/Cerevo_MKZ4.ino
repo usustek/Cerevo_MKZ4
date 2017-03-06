@@ -56,8 +56,8 @@ const char *password = "";
 #define command_back  2
 #define forward       0x01
 #define reverse       0x02
-#define servo_left    65
-#define servo_right   120   // 110 -> 120
+#define servo_left    70
+#define servo_right   110   // 110 -> 120
 
 #define LED_H       (digitalWrite( 12, HIGH ))
 #define LED_L       (digitalWrite( 12, LOW ))
@@ -91,12 +91,14 @@ public:
 	{
 		int rad = _steerCenter;
 
-		if(val > 0) {
-			rad = (int)map(val, 0.0, 1.0, _steerCenter, _maxRight);
+		if(val > 0.0) {
+            rad = _steerCenter + (val * (_maxRight - _steerCenter));
 		}
-		else if(val < 0) {
-			rad = (int)map(val, 0.0, -1.0, _steerCenter, _maxLeft);
+		else if(val < 0.0) {
+            rad = _steerCenter - (val * (_maxLeft - _steerCenter))
+            ;
 		}
+        Serial.println("Servo: " + String(rad));
 		write(rad);
 	}
 };
@@ -204,6 +206,7 @@ void onWSEvent(AsyncWebSocket * server,
   } else if(type == WS_EVT_DISCONNECT){
     //client disconnected
     Serial.printf("ws[%u][%s][%u] disconnect: %u\n", millis(), server->url(), client->id());
+    setControl(0.0, 0.0);
   } else if(type == WS_EVT_ERROR){
     //error was received from the other end
     Serial.printf("ws[%u][%s][%u] error(%u): %s\n", millis(), server->url(), client->id(), *((uint16_t*)arg), (char*)data);
@@ -229,6 +232,8 @@ void onWSEvent(AsyncWebSocket * server,
 
         if(json != NULL && parseJson(json, &ctl)){
             // Serial.println("parsed");
+            Serial.println("Axel: " + String(ctl.axel));
+            Serial.println("Steer: " + String(ctl.steer));
             setControl(ctl.axel, ctl.steer);
             aJson.deleteItem(json);
         }
@@ -265,17 +270,35 @@ bool parseJson(aJsonObject *json, ControlValues *control)
 		control = &tmp;
 	}
 
+    control->axel  = 0.0;
+    control->steer = 0.0;
+
     auto axItem = aJson.getObjectItem(json, "axel");
-    if(axItem != NULL && axItem->type == aJson_Float){
-        control->axel = axItem->valuefloat;
-        parsed |= true;
+    if(axItem != NULL){
+
+        if(axItem->type == aJson_Float){
+            control->axel = axItem->valuefloat;
+            parsed |= true;
+        }
+        else if(axItem->type == aJson_Int){
+            control->axel = axItem->valueint;
+            parsed |= true;
+        }
     }
+
     // aJson.deleteItem(axItem);
 
     auto stItem = aJson.getObjectItem(json, "steer");
-    if(stItem != NULL && stItem->type == aJson_Float){
-        control->steer = stItem->valuefloat;
-        parsed |= true;
+    if(stItem != NULL) {
+        if(stItem->type == aJson_Float){
+            control->steer = stItem->valuefloat;
+            parsed |= true;
+        }
+        else if(stItem->type == aJson_Int){
+            control->steer = stItem->valueint;
+            parsed |= true;
+        }
+        //Serial.println("JsonSteer: " + String(stItem->valuestring));
     }
     // aJson.deleteItem(stItem);
 
@@ -297,7 +320,9 @@ bool parseJson(aJsonObject *json, ControlValues *control)
 // }
 
 void setControl(float axel, float steer){
-	int spd = map(axel, -1.0, 1.0, -255, 255);
+	int spd = (int)(axel * 255.0);
+
+    Serial.println("Speed: " + String(spd));
 
 	drv8830.setSpeed(spd);
 	mkz4Servo.steer(steer);

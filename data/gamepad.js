@@ -32,7 +32,7 @@ function checkPad()
             }
 
             var chg = updatePad(pad, def);
-            if(chg && ws) {
+            if(/*chg &&*/ ws) {
                 sendPadData("control");
             }
         }
@@ -92,8 +92,8 @@ function sendPadData(method){
     if(ws){
         var snd = {
             method: method,
-            axel: Math.pow(lastVal.axel, 3),
-            steer: Math.pow(lastVal.steer, 3)
+            axel: -lastVal.axel,
+            steer: lastVal.steer
         };
 
         ws.send(JSON.stringify(snd));
@@ -180,4 +180,3 @@ window.addEventListener("gamepaddisconnected", function(e) {
     PadDef = null;
     window.cancelAnimationFrame(setIntervalCheck);
 }, false);
-
