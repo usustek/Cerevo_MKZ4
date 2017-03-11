@@ -131,7 +131,14 @@ var GamePadDefs = {
         axelAxis: 1,
         steerAxis: 2,
         startButton: 9
+    },
+    /* PS4 */
+    "Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 05c4)" :{
+        axelAxis: 1,
+        steerAxis: 2,
+        startButton: 9
     }
+
 };
 
 window.onload = function(){
@@ -164,7 +171,9 @@ window.addEventListener("gamepadconnected",  function(e){
         else if(gp.axes.length == 4){
             def.axelAxis    = 1;
             def.steerAxis   = 2;
-            def.startButton = 0;
+            if(gp.buttons.length > 9){
+                def.startButton = 9;
+            }
         }
 
         PadDef = def;

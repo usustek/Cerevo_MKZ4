@@ -1,5 +1,11 @@
 #pragma once
 
-const char* DebugClientSsid = "your-ssid";
-const char* DebugClientPswd = "your-password";
+struct  tagSsidInfo{
+    String ssid;
+    String pswd;
+} ClientSsidInfo[] = {
+    { "your-ssid1",  "your-password1"},
+    { "your-ssid2",  "your-password2"},
+};
 
+#define SIZE_OF_SSIDINFO (sizeof(ClientSsidInfo)/sizeof(ClientSsidInfo[0]))

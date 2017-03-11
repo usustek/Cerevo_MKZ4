@@ -42,6 +42,8 @@
 #include <aJSON.h>
 // #include <ArduinoJson.h>
 #include <Servo.h>
+#include <map>
+
 
 /* Set these to your desired credentials. */
 const char *ssid = "MKZ4";
@@ -136,6 +138,15 @@ ControlValues lastControl;
 char state = command_stop;
 int offset = 10;
 
+struct tagSsidInfo* getSsidInfo(String ssidName){
+    for(int i = 0; i < SIZE_OF_SSIDINFO; i ++){
+        auto info = &ClientSsidInfo[i];
+        if(ssidName == info->ssid) {
+            return info;
+        }
+    }
+    return NULL;
+}
 
 /* Just a little test message.  Go to http://192.168.4.1 in a web browser
  * connected to this access point to see it.
@@ -144,31 +155,45 @@ void setup() {
 	delay(1000);
 	Serial.begin(115200);
 	Serial.println();
-	Serial.print(F("Configuring access point..."));
+	Serial.println(F("Configuring access point..."));
 
 	Wire.begin(4, 14);
 	delay(40);
 
-#if 1
-	WiFi.begin(DebugClientSsid, DebugClientPswd);
+    if(SIZE_OF_SSIDINFO > 0){
+        int n = WiFi.scanNetworks();
+        if(n == 0){
+            Serial.println("No networks...");
 
-	while (WiFi.status() != WL_CONNECTED) {
-		delay(500);
-		Serial.print(".");
-	}
+            WiFi.softAP(ssid, password);
 
-	Serial.println(F(""));
-	Serial.println(F("WiFi connected"));
-	Serial.println(F("IP address: "));
-	Serial.println(WiFi.localIP());
-#else
-	/* You can remove the password parameter if you want the AP to be open. */
-	WiFi.softAP(ssid, password);
+        	IPAddress myIP = WiFi.softAPIP();
+        	Serial.print("AP IP address: ");
+        	Serial.println(myIP);
+        }
+        else{
+            for(int i = 0; i < n; i ++){
+                String ssid = WiFi.SSID(i);
 
-	IPAddress myIP = WiFi.softAPIP();
-	Serial.print("AP IP address: ");
-	Serial.println(myIP);
-#endif
+                struct tagSsidInfo* info = getSsidInfo(ssid);
+                if(info != NULL){
+                    Serial.printf("Connecting to [%s]", info->ssid.c_str());
+                    WiFi.begin(DebugClientSsid, DebugClientPswd);
+
+                	while (WiFi.status() != WL_CONNECTED) {
+                		delay(500);
+                		Serial.print(".");
+                	}
+
+                	Serial.println(F(""));
+                	Serial.println(F("WiFi connected"));
+                	Serial.println(F("IP address: "));
+                	Serial.println(WiFi.localIP());
+                    break;
+                }
+            }
+        }
+    }
 
 	//server.on("/", handleRoot);
 
@@ -216,24 +241,24 @@ void onWSEvent(AsyncWebSocket * server,
   } else if(type == WS_EVT_DATA){
     //data packet
     AwsFrameInfo * info = (AwsFrameInfo*)arg;
-    Serial.printf("ws[%u][%s][%u] %s-message[%u]: ", millis(), server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
-    Serial.println("");
+    // Serial.printf("ws[%u][%s][%u] %s-message[%u]: ", millis(), server->url(), client->id(), (info->opcode == WS_TEXT)?"text":"binary", info->len);
+    // Serial.println("");
 
     if(info->final && info->index == 0 && info->len == len){
       //the whole message is in a single frame and we got all of it's data
       if(info->opcode == WS_TEXT){
 		ControlValues ctl;
         data[len] = 0;
-        Serial.printf("Message %s", (char*)data);
-        Serial.println("");
+        // Serial.printf("Message %s", (char*)data);
+        // Serial.println("");
 
 #ifdef aJson__h
 		aJsonObject* json = aJson.parse((char*)data);
 
         if(json != NULL && parseJson(json, &ctl)){
             // Serial.println("parsed");
-            Serial.println("Axel: " + String(ctl.axel));
-            Serial.println("Steer: " + String(ctl.steer));
+            // Serial.println("Axel: " + String(ctl.axel));
+            // Serial.println("Steer: " + String(ctl.steer));
             setControl(ctl.axel, ctl.steer);
             aJson.deleteItem(json);
         }
