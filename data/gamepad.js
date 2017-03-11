@@ -14,8 +14,12 @@ var PadDef = {
 
 };
 
-//var host = "192.168.10.8";
+// var host = "192.168.10.10";
 var host = location.host;
+
+/**
+ * @param {WebSocket} ws
+ */
 var ws = undefined;
 
 function checkPad()
@@ -85,18 +89,35 @@ function updatePad(pad, def)
 function map(val, in_min, in_max, out_min, out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
+var getPast = (function() {
+  var lastDate = NaN;
+  return function(update) {
+    var now = Date.now();
+    var past = now - lastDate;
+    if(update){
+        lastDate = now;
+    }
+    return past;
+  };
+})();
+
 /**
  * @param {string} method
  */
 function sendPadData(method){
-    if(ws){
+    var past = getPast(false);
+
+    if(ws && (ws.readyState == 1) && (ws.bufferedAmount == 0) && (past > 50)){
         var snd = {
             method: method,
             axel: -lastVal.axel,
             steer: lastVal.steer
         };
 
-        ws.send(JSON.stringify(snd));
+        var dt = JSON.stringify(snd);
+        ws.send(dt);
+        console.debug(dt);
+        getPast(true);
     }
 }
 
@@ -108,21 +129,26 @@ function setIntervalCheck() {
 function toggleConnect(){
     var btn = $("#con");
 
-    if(ws){
-        ws.close();
+    if(ws && (ws.readyState == 0 || ws.readyState == 2)){
+        return;
     }
-    else{
+
+    if(!ws || ws.readyState == 1){
         var sock = new WebSocket("ws://" + host + "/ws");
+        sock.readyState
         sock.onopen = function(event){
-            ws = this; //WebSocket
             btn.text("Disconnect");
             sendPadData("init");
+            getPast(true);
         };
         sock.onclose = function(event){
             ws = undefined;
             btn.text("Connect");
         };
-
+        ws = sock; //WebSocket
+    }
+    else{
+        ws.close();
     }
 };
 
@@ -141,23 +167,19 @@ var GamePadDefs = {
 
 };
 
-window.onload = function(){
-    $("#con").click(toggleConnect);
-};
-
-window.addEventListener("gamepadconnected",  function(e){
-    console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
-        e.gamepad.index, e.gamepad.id,
-        e.gamepad.buttons.length, e.gamepad.axes.length);
-
-    var def = GamePadDefs[e.gamepad.id];
+/**
+ * 
+ * @param {Gamepad} pad 
+ */
+function initPadDef(pad){
+    var def = GamePadDefs[pad.id];
     if(def){
-        def.id    = e.gamepad.id;
-        def.index = e.gamepad.index;
-        PadDef = def;
+        def.id    = pad.id;
+        def.index = pad.index;
+        PadDef    = def;
     }
     else{
-        var gp = e.gamepad;
+        var gp = pad;
         var def = {
             id: gp.id,
             index: gp.index
@@ -178,7 +200,35 @@ window.addEventListener("gamepadconnected",  function(e){
 
         PadDef = def;
     }
+}
 
+function searchGamepad() {
+    var pads = navigator.getGamepads();
+
+    for(var i = 0; i < pads.length; i ++) {
+        var pad = pads[i];
+
+        if(!pad || pad.id.startsWith("Unknown")) {
+            continue;
+        }
+
+        initPadDef(pad);
+        window.requestAnimationFrame(setIntervalCheck);
+        break;
+    }
+}
+
+window.onload = function(){
+    $("#con").click(toggleConnect);
+    searchGamepad();
+};
+
+window.addEventListener("gamepadconnected",  function(e){
+    console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+        e.gamepad.index, e.gamepad.id,
+        e.gamepad.buttons.length, e.gamepad.axes.length);
+
+    initPadDef(e.gamepad);
     initPad();
     window.requestAnimationFrame(setIntervalCheck);
 }, false);
@@ -187,5 +237,4 @@ window.addEventListener("gamepaddisconnected", function(e) {
     console.log("Gamepad disconnected from index %d: %s",
         e.gamepad.index, e.gamepad.id);
     PadDef = null;
-    window.cancelAnimationFrame(setIntervalCheck);
 }, false);
