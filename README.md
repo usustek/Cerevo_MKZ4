@@ -32,7 +32,10 @@ Cerevo MKZ4は前後左右On/Offの操作しか、標準のソフトウェアで
 - MKZ4(ESP8266)側
  - WebServerとなってPC/スマホの操作用UIをホスティング
 - PC/スマホ
- - 操作用のformデータを送信
+ - WebSocketでMKZ4側と通信
+ - ゲームパッドのアナログスティックをMKZ4に送信する
 
- WebSocket化したESP8266側のソフトウェアを間違って消してしまった(´；ω；`)ので、
- 現在ビルドしてもまともに動きません。
+## ビルド環境
+- ArduinoIDE
+- atom + Platform.io
+- Debug_ClientSsid.h.exampleをsrc/Debug_ClientSsid.hにコピーしてSSID/パスワードを記入しておく
