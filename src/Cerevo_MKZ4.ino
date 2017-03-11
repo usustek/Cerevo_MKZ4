@@ -178,7 +178,7 @@ void setup() {
                 struct tagSsidInfo* info = getSsidInfo(ssid);
                 if(info != NULL){
                     Serial.printf("Connecting to [%s]", info->ssid.c_str());
-                    WiFi.begin(DebugClientSsid, DebugClientPswd);
+                    WiFi.begin(info->ssid.c_str(), info->pswd.c_str());
 
                 	while (WiFi.status() != WL_CONNECTED) {
                 		delay(500);
