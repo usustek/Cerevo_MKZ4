@@ -42,7 +42,7 @@
 #include <aJSON.h>
 // #include <ArduinoJson.h>
 #include <Servo.h>
-#include <map>
+///#include <map>
 
 
 /* Set these to your desired credentials. */
@@ -78,6 +78,7 @@ private:
 	int _maxRight = 0;
 	int _maxLeft = 0;
 	int _steerCenter = 90;
+  int _lastSteer = -1;
 
 public:
 	MKZ4Servo(int maxLeftRad, int maxRightRad)
@@ -89,7 +90,7 @@ public:
 		_steerCenter += trim;
 	}
 
-	void steer(float val)
+	bool steer(float val)
 	{
 		int rad = _steerCenter;
 
@@ -100,8 +101,14 @@ public:
             rad = _steerCenter - (val * (_maxLeft - _steerCenter))
             ;
 		}
-        Serial.println("Servo: " + String(rad));
-		write(rad);
+
+    if(_lastSteer != rad){
+      write(rad);
+      _lastSteer = rad;
+      return true;
+    }
+
+    return false;
 	}
 };
 
@@ -180,15 +187,15 @@ void setup() {
                     Serial.printf("Connecting to [%s]", info->ssid.c_str());
                     WiFi.begin(info->ssid.c_str(), info->pswd.c_str());
 
-                	while (WiFi.status() != WL_CONNECTED) {
-                		delay(500);
-                		Serial.print(".");
-                	}
+                    while (WiFi.status() != WL_CONNECTED) {
+                    	delay(500);
+                    	Serial.print(".");
+                    }
 
-                	Serial.println(F(""));
-                	Serial.println(F("WiFi connected"));
-                	Serial.println(F("IP address: "));
-                	Serial.println(WiFi.localIP());
+                    Serial.println(F(""));
+                    Serial.println(F("WiFi connected"));
+                    Serial.println(F("IP address: "));
+                    Serial.println(WiFi.localIP());
                     break;
                 }
             }
@@ -228,6 +235,7 @@ void onWSEvent(AsyncWebSocket * server,
     //client connected
     Serial.printf("ws[%u][%s][%u] connect\n", millis(), server->url(), client->id());
     client->ping();
+    setControl(0.0, 0.0);
   } else if(type == WS_EVT_DISCONNECT){
     //client disconnected
     Serial.printf("ws[%u][%s][%u] disconnect: %u\n", millis(), server->url(), client->id());
@@ -237,7 +245,7 @@ void onWSEvent(AsyncWebSocket * server,
     Serial.printf("ws[%u][%s][%u] error(%u): %s\n", millis(), server->url(), client->id(), *((uint16_t*)arg), (char*)data);
   } else if(type == WS_EVT_PONG){
     //pong message was received (in response to a ping request maybe)
-    Serial.printf("ws[%u][%s][%u] pong[%u]: %s\n", millis(), server->url(), client->id(), len, (len)?(char*)data:"");
+    //Serial.printf("ws[%u][%s][%u] pong[%u]: %s\n", millis(), server->url(), client->id(), len, (len)?(char*)data:"");
   } else if(type == WS_EVT_DATA){
     //data packet
     AwsFrameInfo * info = (AwsFrameInfo*)arg;
@@ -247,38 +255,25 @@ void onWSEvent(AsyncWebSocket * server,
     if(info->final && info->index == 0 && info->len == len){
       //the whole message is in a single frame and we got all of it's data
       if(info->opcode == WS_TEXT){
-		ControlValues ctl;
-        data[len] = 0;
-        // Serial.printf("Message %s", (char*)data);
-        // Serial.println("");
+  		    ControlValues ctl;
+          data[len] = 0;
+          // Serial.printf("Message %s", (char*)data);
+          // Serial.println("");
 
 #ifdef aJson__h
-		aJsonObject* json = aJson.parse((char*)data);
+      		aJsonObject* json = aJson.parse((char*)data);
 
-        if(json != NULL && parseJson(json, &ctl)){
-            // Serial.println("parsed");
-            // Serial.println("Axel: " + String(ctl.axel));
-            // Serial.println("Steer: " + String(ctl.steer));
-            setControl(ctl.axel, ctl.steer);
-            aJson.deleteItem(json);
-        }
+          if(json != NULL && parseJson(json, &ctl)){
+              // Serial.println("parsed");
+              // Serial.println("Axel: " + String(ctl.axel));
+              // Serial.println("Steer: " + String(ctl.steer));
+              setControl(ctl.axel, ctl.steer);
+              aJson.deleteItem(json);
+          }
 #endif
-
-#if 0
-        Serial.printf("Axel: %lf\n", (double)json["axel"]);
-        Serial.printf("Steer: %lf\n", (double)json["steer"]);
-
-        if(json.success()){
-            if(lastControl.merge(ctl)){
-    			setControl(ctl.axel, ctl.steer);
-    		}
         }
-        else{
-            Serial.println("parse fail.");
-        }
-#endif
-      }
     }
+    client->ping();
   }
 }
 
@@ -310,8 +305,7 @@ bool parseJson(aJsonObject *json, ControlValues *control)
             parsed |= true;
         }
     }
-
-    // aJson.deleteItem(axItem);
+    //aJson.deleteItem(axItem);
 
     auto stItem = aJson.getObjectItem(json, "steer");
     if(stItem != NULL) {
@@ -323,7 +317,6 @@ bool parseJson(aJsonObject *json, ControlValues *control)
             control->steer = stItem->valueint;
             parsed |= true;
         }
-        //Serial.println("JsonSteer: " + String(stItem->valuestring));
     }
     // aJson.deleteItem(stItem);
 
@@ -331,216 +324,20 @@ bool parseJson(aJsonObject *json, ControlValues *control)
 }
 #endif
 
-// void parseJson(JsonObject &json, ControlValues *control)
-// {
-// 	ControlValues tmp;
-// 	auto orZero = [=](String s) { return s != NULL && s == "" ? s : String(F("0")); };
-//
-// 	if(control == NULL) {
-// 		control = &tmp;
-// 	}
-//
-// 	control->axel  = orZero(json[F("axel")]).toFloat();
-// 	control->steer = orZero(json[F("steer")]).toFloat();
-// }
+static int lastSpeed = 0;
 
 void setControl(float axel, float steer){
+  bool chg = false;
 	int spd = (int)(axel * 255.0);
 
-    Serial.println("Speed: " + String(spd));
+  if(lastSpeed != spd){
+    drv8830.setSpeed(spd);
+    lastSpeed = spd;
+    chg = true;
+  }
 
-	drv8830.setSpeed(spd);
-	mkz4Servo.steer(steer);
+	if(mkz4Servo.steer(steer) || chg){
+      Serial.printf("[%u]Speed: %s, Servo: %d\r\n", millis(), String(spd).c_str(), mkz4Servo.read());
+      //Serial.println(F("."));
+  }
 }
-
-#if 0
-void handleRoot() {
-	server.send(200, "text/html", form);
-}
-
-void handle_stop() {
-	Serial.print("stop\r\n");
-	LED_L;
-	stop_motor();
-	state = command_stop;
-	LED_H;
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_forward() {
-	Serial.print("forward\r\n");
-	drive();
-	servo_control(90);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_back() {
-	Serial.print("back\r\n");
-	back();
-	servo_control(90);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_left() {
-	Serial.print("left\r\n");
-	servo_control(servo_left);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_right() {
-	Serial.print("right\r\n");
-	servo_control(servo_right);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_f_left() {
-	Serial.print("f_left\r\n");
-	drive();
-	servo_control(servo_left);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_f_right() {
-	Serial.print("f_right\r\n");
-	drive();
-	servo_control(servo_right);
-	server_8080.send(200, "text/html", "");
-}
-
-void handle_b_left() {
-	Serial.print("b_left\r\n");
-	back();
-	servo_control(servo_left);
-	server_8080.send(200, "text/html", "");
-}
-
-
-void handle_b_right() {
-	Serial.print("b_right\r\n");
-	back();
-	servo_control(servo_right);
-	server_8080.send(200, "text/html", "");
-}
-#endif
-
-#if 0
-void drive() {
-	if (state == command_back) {
-		stop_motor();
-
-		delay(10);
-
-		start_motor();
-
-	}
-	else if (state == command_stop) {
-		start_motor();
-	}
-	state = command_start;
-}
-
-void back() {
-	if (state == command_start) {
-		stop_motor();
-		delay(10);
-		reverse_motor();
-	}
-	else if (state == command_stop) {
-		reverse_motor();
-	}
-	state = command_back;
-}
-
-void start_motor() {
-	char i, volt;
-	volt = 0x20;
-	for (i = 0; i < 5; i++) {
-		volt = volt + ((0x40)*i);
-		volt = volt | forward;
-		motor_func(ADDR1, volt);
-		delay(10);
-	}
-}
-
-void reverse_motor() {
-	char i, volt;
-	volt = 0x20;
-	for (i = 0; i < 5; i++) {
-		volt = volt + ((0x40)*i);
-		volt = volt | reverse;
-		motor_func(ADDR1, volt);
-		delay(10);
-	}
-}
-
-void stop_motor() {
-	motor_func(ADDR1, 0x18);
-	delay(10);
-	motor_func(ADDR1, 0x1B);
-	delay(10);
-}
-
-void motor_func(char add, char duty) {
-	Wire.beginTransmission(add);
-	Wire.write(0x00);
-	Wire.write(duty);
-	Wire.endTransmission();
-}
-
-void servo_control(int angle) {
-	int microsec, i;
-	LED_L;
-	microsec = (5 * (angle + offset)) + 1000;
-
-	for (i = 0; i < 20; i++) {
-		digitalWrite(16, HIGH);
-		delayMicroseconds(microsec);
-		digitalWrite(16, LOW);
-		delayMicroseconds(10000 - microsec);
-	}
-	LED_H;
-}
-#endif
-
-#if 0
-#define MARGIN_STEER 0.001
-#define MARGIN_AXEL  0.001
-
-float servoCenter = 90.0;
-float axelLast = 0.0;
-float steerLast = 0.0;
-float axelCenter = 0.0;
-float steerCenter = 0.0;
-
-// value < 0 : left
-// value > 0 : right
-void steering(float value)
-{
-
-	// 前回値と異なるか？
-	if (steerLast != value)
-	{
-		// right
-		if ((steerCenter + MARGIN_STEER) <= value)
-		{
-			float start = steerCenter + MARGIN_STEER; // 有効な開始点
-			float delta = value - start;			  // 開始点からの差分
-			float frange = 1.0f - start;		      // 有効範囲
-			float radmax = (float)servo_right - servoCenter; // 右ハンドルの角度
-			float rad = 1.0f / frange * delta * radmax;  // センサ値→角度
-			servo_control(servoCenter + (int)rad);
-		}
-		// left
-		if ((steerCenter - MARGIN_STEER) >= value)
-		{
-			float start = steerCenter - MARGIN_STEER; // 有効な開始点
-			float delta = value - start;			  // 開始点からの差分
-			float frange = -1.0f - start;		      // 有効範囲
-			float radmax = (float)servo_left - servoCenter; // 右ハンドルの角度
-			float rad = 1.0f / frange * delta * radmax;  // TODO 要再考 センサ値→角度
-			servo_control(servoCenter + (int)rad);
-		}
-		steerLast = value;
-	}
-}
-#endif
