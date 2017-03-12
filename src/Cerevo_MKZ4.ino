@@ -78,7 +78,7 @@ private:
 	int _maxRight = 0;
 	int _maxLeft = 0;
 	int _steerCenter = 90;
-  int _lastSteer = -1;
+    int _lastSteer = -1;
 
 public:
 	MKZ4Servo(int maxLeftRad, int maxRightRad)
@@ -87,7 +87,9 @@ public:
 	}
 
 	void addTrim(int trim){
-		_steerCenter += trim;
+        _steerCenter += trim;
+        _lastSteer += trim;
+        write(_lastSteer);
 	}
 
 	bool steer(float val)
@@ -116,6 +118,8 @@ class ControlValues {
 public:
 	float axel;
 	float steer;
+    int trimAxel;
+    int trimSteer;
 
 	bool merge(ControlValues &src)
 	{
@@ -263,12 +267,21 @@ void onWSEvent(AsyncWebSocket * server,
 #ifdef aJson__h
       		aJsonObject* json = aJson.parse((char*)data);
 
-          if(json != NULL && parseJson(json, &ctl)){
-              // Serial.println("parsed");
-              // Serial.println("Axel: " + String(ctl.axel));
-              // Serial.println("Steer: " + String(ctl.steer));
-              setControl(ctl.axel, ctl.steer);
-              aJson.deleteItem(json);
+          if(json != NULL){
+              aJsonObject* mItem = aJson.getObjectItem(json, "method");
+              String method = mItem != NULL && mItem->type == aJson_String ? String(mItem->valuestring) : String(F(""));
+
+              if(method.equals(F("control"))){
+                if(parseControlJson(json, &ctl)){
+                    setControl(ctl.axel, ctl.steer);
+                    aJson.deleteItem(json);
+                }
+              }
+              else if(method.equals(F("trim"))){
+                  if(parseTrimJson(json, &ctl)){
+                      mkz4Servo.addTrim(ctl.trimSteer);
+                  }
+              }
           }
 #endif
         }
@@ -281,7 +294,7 @@ void loop() {
 }
 
 #ifdef aJson__h
-bool parseJson(aJsonObject *json, ControlValues *control)
+bool parseControlJson(aJsonObject *json, ControlValues *control)
 {
 	ControlValues tmp;
     bool parsed = false;
@@ -317,6 +330,34 @@ bool parseJson(aJsonObject *json, ControlValues *control)
             control->steer = stItem->valueint;
             parsed |= true;
         }
+    }
+    // aJson.deleteItem(stItem);
+
+    return parsed;
+}
+
+bool parseTrimJson(aJsonObject *json, ControlValues *control)
+{
+    ControlValues tmp;
+    bool parsed = false;
+
+	if(control == NULL) {
+		control = &tmp;
+	}
+
+    control->trimAxel  = 0;
+    control->trimSteer = 0;
+
+    auto axItem = aJson.getObjectItem(json, "trimAxel");
+    if((axItem != NULL) && (axItem->type == aJson_Int)){
+        control->trimAxel = axItem->valueint;
+        parsed |= true;
+    }
+
+    auto stItem = aJson.getObjectItem(json, "trimSteer");
+    if((stItem != NULL) && (stItem->type == aJson_Int)){
+        control->trimSteer = stItem->valueint;
+        parsed |= true;
     }
     // aJson.deleteItem(stItem);
 

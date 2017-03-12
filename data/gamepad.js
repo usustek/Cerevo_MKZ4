@@ -35,9 +35,11 @@ function checkPad()
                 toggleConnect();
             }
 
-            var chg = updatePad(pad, def);
-            if(/*chg &&*/ ws) {
-                sendPadData("control");
+            if(!updateTrim(pad, def)){
+                var chg = updatePad(pad, def);
+                if(/*chg &&*/ ws) {
+                    sendPadData("control");
+                }
             }
         }
     }
@@ -86,9 +88,45 @@ function updatePad(pad, def)
     return chg;
 }
 
+function updateTrim(pad, def){
+    var chg = false;
+    var snd = {
+        trimAxel: 0,
+        trimSteer: 0
+    };
+
+    if(def.trimLeft || def.trimRight){
+        snd.trimSteer -= pad.buttons[def.trimLeft].pressed ? 1 : 0;
+        snd.trimSteer += pad.buttons[def.trimRight].pressed ? 1 : 0;
+        chg |= snd.trimSteer != 0;
+    }
+
+    if(def.trimForward || def.trimBack){
+        snd.trimAxel += pad.buttons[def.trimForward].pressed ? 1 : 0;
+        snd.trimAxel -= pad.buttons[def.trimBack].pressed ? 1 : 0;
+        chg |= snd.trimAxel != 0;
+    }
+
+    if(chg){
+        snd.method = "trim";
+        sendCommand(snd);
+    }
+
+    return chg;
+}
+
+function sendCommand(obj) {
+    if(ws && (ws.readyState == 1) && (ws.bufferedAmount == 0)){
+        var dat = JSON.stringify(obj);
+        ws.send(dat);
+        console.debug(dat);
+    }
+}
+
 function map(val, in_min, in_max, out_min, out_max) {
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
+
 var getPast = (function() {
   var lastDate = NaN;
   return function(update) {
@@ -138,7 +176,6 @@ function toggleConnect(){
         sock.readyState
         sock.onopen = function(event){
             btn.text("Disconnect");
-            sendPadData("init");
             getPast(true);
         };
         sock.onclose = function(event){
@@ -156,6 +193,10 @@ var GamePadDefs = {
     "Logicool Dual Action (STANDARD GAMEPAD Vendor: 046d Product: c216)" : {
         axelAxis: 1,
         steerAxis: 2,
+        trimForward: 12,
+        trimBack: 13,
+        trimLeft: 14,
+        trimRight: 15,
         startButton: 9
     },
     /* PS4 */
