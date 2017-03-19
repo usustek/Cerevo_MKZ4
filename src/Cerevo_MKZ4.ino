@@ -171,19 +171,12 @@ void setup() {
 	Wire.begin(4, 14);
 	delay(40);
 
+    bool existSsid = false;
+
     if(SIZE_OF_SSIDINFO > 0){
         int n = WiFi.scanNetworks();
-        if(n == 0){
-            Serial.println("No networks...");
-
-            WiFi.softAP(ssid, password);
-
-        	IPAddress myIP = WiFi.softAPIP();
-        	Serial.print("AP IP address: ");
-        	Serial.println(myIP);
-        }
-        else{
-            for(int i = 0; i < n; i ++){
+        if(n != 0){
+            for(int i = 0; i < n && !existSsid; i ++){
                 String ssid = WiFi.SSID(i);
 
                 struct tagSsidInfo* info = getSsidInfo(ssid);
@@ -200,12 +193,23 @@ void setup() {
                     Serial.println(F("WiFi connected"));
                     Serial.println(F("IP address: "));
                     Serial.println(WiFi.localIP());
+
+                    existSsid = true;
                     break;
                 }
             }
         }
     }
 
+    if(!existSsid) {
+        Serial.println("No networks...");
+
+        WiFi.softAP(ssid, password);
+
+        IPAddress myIP = WiFi.softAPIP();
+        Serial.print("AP IP address: ");
+        Serial.println(myIP);
+    }
 	//server.on("/", handleRoot);
 
 	drv8830.setSpeed(0);
