@@ -42,6 +42,7 @@
 #include <aJSON.h>
 // #include <ArduinoJson.h>
 #include <Servo.h>
+#include <EEPROM.h>
 ///#include <map>
 
 
@@ -92,6 +93,14 @@ public:
         write(_lastSteer);
 	}
 
+    int getTrim(){
+        return _steerCenter;
+    }
+
+    void setTrim(int trim){
+        addTrim(trim-90);
+    }
+
 	bool steer(float val)
 	{
 		int rad = _steerCenter;
@@ -139,6 +148,11 @@ public:
 	}
 };
 
+typedef struct {
+    int axel;
+    int steer;
+} RomTrim;
+
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 DRV8830MotorDriver drv8830(ADDR1);
@@ -171,8 +185,10 @@ void setup() {
 	Wire.begin(4, 14);
 	delay(40);
 
-    bool existSsid = false;
+    EEPROM.begin(32);
+    loadTrim();
 
+    bool existSsid = false;
     if(SIZE_OF_SSIDINFO > 0){
         int n = WiFi.scanNetworks();
         if(n != 0){
@@ -284,17 +300,48 @@ void onWSEvent(AsyncWebSocket * server,
               else if(method.equals(F("trim"))){
                   if(parseTrimJson(json, &ctl)){
                       mkz4Servo.addTrim(ctl.trimSteer);
+
+                      saveTrim();
                   }
               }
           }
 #endif
         }
     }
+
+    if(!info->final){
+        Serial.println("!Final");
+    }
     client->ping();
   }
 }
 
 void loop() {
+}
+
+void saveTrim()
+{
+    RomTrim tmp;
+
+    tmp.axel = 0;
+    tmp.steer = mkz4Servo.getTrim();
+
+    EEPROM.put<RomTrim>(0, tmp);
+    EEPROM.commit();
+
+    Serial.printf("Save Trim: ax:%d st:%d\n", tmp.axel, tmp.steer);
+}
+
+void loadTrim()
+{
+    RomTrim tmp;
+    EEPROM.get<RomTrim>(0, tmp);
+    if(tmp.axel > -256 && tmp.axel < 256) {
+
+    }
+    if(tmp.steer >= servo_left && tmp.steer <= servo_right){
+        mkz4Servo.setTrim(tmp.steer);
+    }
 }
 
 #ifdef aJson__h

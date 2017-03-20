@@ -14,8 +14,8 @@ var PadDef = {
 
 };
 
-var host = "192.168.10.13";
-// var host = location.host;
+//var host = "192.168.10.13";
+var host = location.host;
 
 /**
  * @param {WebSocket} ws
@@ -37,7 +37,7 @@ function checkPad()
 
             if(!updateTrim(pad, def)){
                 var chg = updatePad(pad, def);
-                if(/*chg &&*/ ws) {
+                if(chg && ws) {
                     sendPadData("control");
                 }
             }
@@ -180,13 +180,15 @@ function toggleConnect(){
             getPast(true);
         };
         sock.onclose = function(event){
-            ws = undefined;
             btn.text("Connect");
+            ws = undefined;
         };
         ws = sock; //WebSocket
     }
     else if (ws.readyState == 1){
         ws.close();
+        btn.text("Connect");
+        ws = undefined;
     }
 };
 
