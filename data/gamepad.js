@@ -14,8 +14,8 @@ var PadDef = {
 
 };
 
-// var host = "192.168.10.10";
-var host = location.host;
+var host = "192.168.10.13";
+// var host = location.host;
 
 /**
  * @param {WebSocket} ws
@@ -146,7 +146,6 @@ function sendPadData(method){
     var past = getPast(false);
 
     if(ws && (ws.readyState == 1) && (ws.bufferedAmount == 0) && (past > 50)){
-        ws.
         var ax = Math.cbrt(Math.round(Math.pow(lastVal.axel, 3) * 1000)/1000);
         var st = Math.cbrt(Math.round(Math.pow(lastVal.steer,3) * 1000)/1000);
         var snd = {
@@ -169,7 +168,6 @@ function setIntervalCheck() {
 
 function toggleConnect(){
     var btn = $("#con");
-    var ws = new WebSocket();
 
     if(ws && (ws.readyState == 0 || ws.readyState == 2 || ws.readyState == 3)){
         return;
