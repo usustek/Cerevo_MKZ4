@@ -146,10 +146,13 @@ function sendPadData(method){
     var past = getPast(false);
 
     if(ws && (ws.readyState == 1) && (ws.bufferedAmount == 0) && (past > 50)){
+        ws.
+        var ax = Math.cbrt(Math.round(Math.pow(lastVal.axel, 3) * 1000)/1000);
+        var st = Math.cbrt(Math.round(Math.pow(lastVal.steer,3) * 1000)/1000);
         var snd = {
             method: method,
-            axel: -lastVal.axel,
-            steer: lastVal.steer
+            axel: -ax,
+            steer: st
         };
 
         var dt = JSON.stringify(snd);
@@ -166,14 +169,14 @@ function setIntervalCheck() {
 
 function toggleConnect(){
     var btn = $("#con");
+    var ws = new WebSocket();
 
-    if(ws && (ws.readyState == 0 || ws.readyState == 2)){
+    if(ws && (ws.readyState == 0 || ws.readyState == 2 || ws.readyState == 3)){
         return;
     }
 
-    if(!ws || ws.readyState == 1){
+    if(!ws){
         var sock = new WebSocket("ws://" + host + "/ws");
-        sock.readyState
         sock.onopen = function(event){
             btn.text("Disconnect");
             getPast(true);
@@ -184,7 +187,7 @@ function toggleConnect(){
         };
         ws = sock; //WebSocket
     }
-    else{
+    else if (ws.readyState == 1){
         ws.close();
     }
 };
@@ -203,6 +206,10 @@ var GamePadDefs = {
     "Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 05c4)" :{
         axelAxis: 1,
         steerAxis: 2,
+        trimForward: 12,
+        trimBack: 13,
+        trimLeft: 14,
+        trimRight: 15,
         startButton: 9
     }
 

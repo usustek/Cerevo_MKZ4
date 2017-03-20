@@ -373,15 +373,15 @@ static int lastSpeed = 0;
 
 void setControl(float axel, float steer){
   bool chg = false;
-	int spd = (int)(axel * 255.0);
+  int spd = (int)(axel * 255.0);
 
-  if(lastSpeed != spd){
+  //if(lastSpeed != spd){
     drv8830.setSpeed(spd);
     lastSpeed = spd;
     chg = true;
-  }
+  //}
 
-	if(mkz4Servo.steer(steer) || chg){
+  if(mkz4Servo.steer(steer) || chg){
       Serial.printf("[%u]Speed: %s, Servo: %d\r\n", millis(), String(spd).c_str(), mkz4Servo.read());
       //Serial.println(F("."));
   }
